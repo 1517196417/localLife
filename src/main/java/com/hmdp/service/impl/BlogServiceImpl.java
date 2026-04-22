@@ -103,8 +103,13 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     }
 
     private void isBlogLiked(Blog blog) {
-        Long userId = blog.getUserId();
-
+        // 获取当前登录用户，如果未登录则默认未点赞
+        UserDTO user = UserHolder.getUser();
+        if(user == null){
+            blog.setIsLike(false);
+            return;
+        }
+        Long userId = user.getId();
         Long blogId = blog.getId();
         String key = "blog:like:" + blogId;
 
