@@ -12,6 +12,7 @@ import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.RegexUtils;
 import com.hmdp.utils.UserHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,7 @@ import static java.time.LocalTime.now;
  * @author 虎哥
  * @since 2021-12-22
  */
+@Slf4j
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Resource
@@ -131,6 +133,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         save(user);
 
         return user;
+    }
+
+    @Override
+    public Result logout(String token) {
+        try {
+            // 1. 校验token是否为空
+            if (token == null || token.trim().isEmpty()) {
+                return Result.fail("token不能为空");
+            }
+            
+            // 2. 构建Redis中的token key
+            String tokenKey = LOGIN_USER_KEY + token;
+            
+            // 3. 删除Redis中的用户登录信息
+            Boolean deleted = stringRedisTemplate.delete(tokenKey);
+            
+            if (deleted != null && deleted) {
+                log.info("用户退出登录成功，token: {}", token);
+                return Result.ok();
+            } else {
+                log.warn("用户退出登录，token不存在: {}", token);
+                return Result.ok(); // 即使token不存在也返回成功，避免前端错误
+            }
+        } catch (Exception e) {
+            log.error("用户退出登录异常", e);
+            return Result.fail("退出登录失败，请稍后重试");
+        }
     }
 
     @Override

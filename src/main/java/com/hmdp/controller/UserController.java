@@ -59,9 +59,9 @@ public class UserController {
      * @return 无
      */
     @PostMapping("/logout")
-    public Result logout(){
-        // TODO 实现登出功能
-        return Result.fail("功能未完成");
+    public Result logout(@RequestHeader(value = "authorization", required = false) String token){
+        // 实现退出登录功能：删除Redis中的token
+        return userService.logout(token);
     }
 
     @GetMapping("/me")
