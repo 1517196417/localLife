@@ -18,6 +18,29 @@ spring:
         max-idle: 10
         min-idle: 1
         time-between-eviction-runs: 10s
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    # 生产者确认模式
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    # 消费者手动ACK
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 10
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000
+    template:
+      mandatory: true
+      retry:
+        enabled: true
+        max-attempts: 3
   elasticsearch:
     uris: http://localhost:9200
   jackson:

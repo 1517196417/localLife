@@ -14,9 +14,10 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface IVoucherOrderService extends IService<VoucherOrder> {
 
+    /**
+     * 秒杀下单（基于RabbitMQ异步处理）
+     * @param voucherId 优惠券ID
+     * @return 订单ID
+     */
     Result secKillOrder(Long voucherId);
-
-
-    void createVoucherOrder(VoucherOrder voucherOrder);
-
 }
