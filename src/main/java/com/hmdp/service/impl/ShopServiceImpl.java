@@ -65,6 +65,33 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         return Result.ok(shop);
     }
 
+    /**
+     * @Override
+     * public Result queryById(Long id) {
+     *     // 使用多级缓存
+     *     String l1Key = "shop:cache:" + id;
+     *     String l2Key = RedisConstants.CACHE_SHOP_KEY + id;
+     *
+     *     String shopJson = multiLevelCache.get(
+     *         l1Key,
+     *         l2Key,
+     *         30L,
+     *         (key) -> {
+     *             Shop shop = getById(id);
+     *             return shop != null ? JSONUtil.toJsonStr(shop) : null;
+     *         }
+     *     );
+     *
+     *     if (shopJson == null || shopJson.isEmpty()) {
+     *         return Result.fail("商铺不存在");
+     *     }
+     *
+     *     Shop shop = JSONUtil.toBean(shopJson, Shop.class);
+     *     return Result.ok(shop);
+     * }
+
+     */
+
     @Override
     public Result queryShopByType(Integer typeId, Integer current, Double x, Double y) {
         //1.判断是否需要根据距离来排序商家
