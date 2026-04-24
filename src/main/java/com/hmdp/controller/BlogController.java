@@ -6,7 +6,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
+import com.hmdp.entity.BlogDocument;
 import com.hmdp.entity.User;
+import com.hmdp.repository.BlogRepository;
 import com.hmdp.service.IBlogService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.SystemConstants;
@@ -30,6 +32,9 @@ public class BlogController {
 
     @Resource
     private IBlogService blogService;
+
+    @Resource
+    private BlogRepository blogRepository;
 
 
     @PostMapping
@@ -92,5 +97,16 @@ public class BlogController {
     @GetMapping("/recommend")
     public Result recommendBlogs() {
         return blogService.recommendBlogs();
+    }
+
+    /**
+     * 搜索博客信息（使用Elasticsearch）
+     * @param keyword 搜索关键字
+     * @return 博客列表
+     */
+    @GetMapping("/search")
+    public Result searchBlogs(@RequestParam("keyword") String keyword) {
+        List<BlogDocument> documents = blogRepository.findByTitleContainingOrContentContaining(keyword, keyword);
+        return Result.ok(documents);
     }
 }

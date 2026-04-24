@@ -5,11 +5,14 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
+import com.hmdp.entity.ShopDocument;
+import com.hmdp.repository.ShopRepository;
 import com.hmdp.service.IShopService;
 import com.hmdp.utils.SystemConstants;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.util.List;
 
 /**
  * <p>
@@ -25,6 +28,9 @@ public class ShopController {
 
     @Resource
     public IShopService shopService;
+
+    @Resource
+    private ShopRepository shopRepository;
 
     /**
      * 根据id查询商铺信息
@@ -95,5 +101,17 @@ public class ShopController {
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 返回数据
         return Result.ok(page.getRecords());
+    }
+
+    /**
+     * 搜索商铺信息（使用Elasticsearch）
+     * @param keyword 搜索关键字
+     * @return 商铺列表
+     */
+    @GetMapping("/search")
+    public Result searchShops(@RequestParam("keyword") String keyword) {
+        List<ShopDocument> documents = shopRepository.findByNameContainingOrAddressContainingOrAreaContaining(keyword, keyword, keyword);
+        // 转换为Shop实体（简化，这里直接返回documents）
+        return Result.ok(documents);
     }
 }

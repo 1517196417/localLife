@@ -9,11 +9,13 @@ import com.hmdp.dto.Result;
 import com.hmdp.entity.RedisData;
 import com.hmdp.entity.Shop;
 import com.hmdp.mapper.ShopMapper;
+import com.hmdp.service.BloomFilterService;
 import com.hmdp.service.IShopService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 
 import com.hmdp.utils.SystemConstants;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;
 import org.springframework.data.geo.GeoResults;
@@ -50,6 +52,9 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     public ShopServiceImpl(StringRedisTemplate stringRedisTemplate) {
         this.stringRedisTemplate = stringRedisTemplate;
     }
+
+    @Autowired
+    private BloomFilterService bloomFilterService;
 
     @Override
     public Object queryById(Long id) {
@@ -216,7 +221,11 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     }
 
     //封装好解决了缓存穿透的商户查询方法
-    public Shop queryWithPassThrough(String id) {
+    public Shop queryWithPassThrough(Long id) {
+        // 先检查布隆过滤器
+        if (!bloomFilterService.mightContain(id)) {
+            return null; // 肯定不存在
+        }
         String shopKey = CACHE_SHOP_KEY + id;
         //1：从redis缓存取出商户信息
         String shopJson = stringRedisTemplate.opsForValue().get(shopKey);
@@ -226,7 +235,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             return shop;
         }
         //为解决缓存穿透，从redis中获取到”“就直接返回错误信息，防止访问数据库
-        if(shopKey != null) {
+        if(shopJson != null) {
             return null;
         }
         //3：redis缓存未命中，从数据库里查询
@@ -247,6 +256,8 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         if (result) {
             // 添加GEO数据
             stringRedisTemplate.opsForGeo().add(SHOP_GEO_KEY + entity.getTypeId(), new RedisGeoCommands.GeoLocation<>(entity.getId().toString(), new org.springframework.data.geo.Point(entity.getX(), entity.getY())));
+            // 添加到布隆过滤器
+            bloomFilterService.add(entity.getId());
         }
         return result;
     }

@@ -5,16 +5,19 @@ import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.conditions.query.QueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
 import com.hmdp.dto.Result;
 import com.hmdp.dto.ScrollResult;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
+import com.hmdp.entity.BlogDocument;
 import com.hmdp.entity.Follow;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.BlogMapper;
 import com.hmdp.mapper.FollowMapper;
 import com.hmdp.mapper.ShopMapper;
 import com.hmdp.mapper.UserMapper;
+import com.hmdp.repository.BlogRepository;
 import com.hmdp.service.IBlogService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.service.IFollowService;
@@ -52,6 +55,8 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     private ShopMapper shopMapper;
     @Autowired
     private IFollowService followService;
+    @Resource
+    private BlogRepository blogRepository;
 
     @Override
     public Result saveBlog(Blog blog) {
@@ -71,6 +76,10 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
             String followKey = "feed:" + follow.getUserId();
             stringRedisTemplate.opsForZSet().add(followKey, blog.getId().toString(), System.currentTimeMillis());
         }
+
+        // 同步到Elasticsearch
+        BlogDocument blogDocument = convertToBlogDocument(blog);
+        blogRepository.save(blogDocument);
 
         // 返回id
         return Result.ok(blog.getId());
@@ -303,5 +312,18 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         return Result.ok(blogs);
     }
 
-
+    public BlogDocument convertToBlogDocument(Blog blog) {
+        BlogDocument document = new BlogDocument();
+        document.setId(blog.getId());
+        document.setShopId(blog.getShopId());
+        document.setUserId(blog.getUserId());
+        document.setTitle(blog.getTitle());
+        document.setContent(blog.getContent());
+        document.setTags(blog.getTags());
+        document.setLiked(blog.getLiked());
+        document.setComments(blog.getComments());
+        document.setCreateTime(blog.getCreateTime());
+        document.setUpdateTime(blog.getUpdateTime());
+        return document;
+    }
 }
