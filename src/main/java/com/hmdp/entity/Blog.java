@@ -72,6 +72,11 @@ public class Blog implements Serializable {
     private String content;
 
     /**
+     * 话题标签
+     */
+    private String tags;
+
+    /**
      * 点赞数量
      */
     private Integer liked;

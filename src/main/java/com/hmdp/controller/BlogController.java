@@ -89,4 +89,8 @@ public class BlogController {
         return blogService.queryBlogOfFollows(max, offset);
     }
 
+    @GetMapping("/recommend")
+    public Result recommendBlogs() {
+        return blogService.recommendBlogs();
+    }
 }

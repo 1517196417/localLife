@@ -241,6 +241,16 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         return shop;
     }
 
+    @Override
+    public boolean save(Shop entity) {
+        boolean result = super.save(entity);
+        if (result) {
+            // 添加GEO数据
+            stringRedisTemplate.opsForGeo().add(SHOP_GEO_KEY + entity.getTypeId(), new RedisGeoCommands.GeoLocation<>(entity.getId().toString(), new org.springframework.data.geo.Point(entity.getX(), entity.getY())));
+        }
+        return result;
+    }
+
 @Override
 @Transactional
 public Result update(Shop shop) {
@@ -252,6 +262,8 @@ public Result update(Shop shop) {
     updateById(shop);
     //2：再删除缓存
     stringRedisTemplate.delete(CACHE_SHOP_KEY + shopId);
+    //3：更新GEO数据
+    stringRedisTemplate.opsForGeo().add(SHOP_GEO_KEY + shop.getTypeId(), new RedisGeoCommands.GeoLocation<>(shop.getId().toString(), new org.springframework.data.geo.Point(shop.getX(), shop.getY())));
     return Result.ok();
 }
 

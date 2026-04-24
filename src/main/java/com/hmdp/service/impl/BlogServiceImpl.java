@@ -21,6 +21,7 @@ import com.hmdp.service.IFollowService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.SystemConstants;
 import com.hmdp.utils.UserHolder;
+import com.hmdp.websocket.WebSocketServer;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -99,6 +100,12 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         }
         queryBlogUser(blog);
         isBlogLiked(blog);
+        // 记录用户浏览行为
+        UserDTO user = UserHolder.getUser();
+        if(user != null) {
+            String key = "user:view:" + user.getId();
+            stringRedisTemplate.opsForZSet().add(key, id.toString(), System.currentTimeMillis());
+        }
         return Result.ok(blog);
     }
 
@@ -133,6 +140,14 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                     .update();
 
             stringRedisTemplate.opsForZSet().add(key, userId.toString(), System.currentTimeMillis());
+            // 记录用户点赞行为
+            String userLikeKey = "user:like:" + userId;
+            stringRedisTemplate.opsForZSet().add(userLikeKey, id.toString(), System.currentTimeMillis());
+            // 发送点赞通知
+            Long blogUserId = blog.getUserId();
+            if (!blogUserId.equals(userId)) {
+                WebSocketServer.sendMessage(blogUserId, "您的博客被用户" + userId + "点赞了");
+            }
         }
         //2.2：已点赞，取消点赞（数据库-1），将userId移除redis
         else{
@@ -141,6 +156,9 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                     .update();
 
             stringRedisTemplate.opsForZSet().remove(key, userId.toString());
+            // 移除用户点赞行为
+            String userLikeKey = "user:like:" + userId;
+            stringRedisTemplate.opsForZSet().remove(userLikeKey, id.toString());
         }
     }
 
@@ -211,4 +229,79 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         scrollResult.setOffset(os);
         return Result.ok(scrollResult);
     }
+
+    // ... existing code ...
+    @Override
+    public Result recommendBlogs() {
+        UserDTO user = UserHolder.getUser();
+        if (user == null) {
+            return Result.ok(Collections.emptyList());
+        }
+        Long userId = user.getId();
+
+        String userLikeKey = "user:like:" + userId;
+        Set<String> likedBlogs = stringRedisTemplate.opsForZSet().range(userLikeKey, 0, -1);
+        if (likedBlogs == null || likedBlogs.isEmpty()) {
+            return Result.ok(Collections.emptyList());
+        }
+
+        // 统计每个点赞用户的相似度（点赞相同博客的数量）
+        java.util.Map<Long, Integer> userSimilarityMap = new java.util.HashMap<>();
+        for (String blogId : likedBlogs) {
+            String blogLikeKey = "blog:like:" + blogId;
+            Set<String> likers = stringRedisTemplate.opsForZSet().range(blogLikeKey, 0, -1);
+            if (likers != null) {
+                for (String likerId : likers) {
+                    Long likerUid = Long.valueOf(likerId);
+                    if (!likerUid.equals(userId)) {
+                        userSimilarityMap.merge(likerUid, 1, Integer::sum);
+                    }
+                }
+            }
+        }
+
+        if (userSimilarityMap.isEmpty()) {
+            return Result.ok(Collections.emptyList());
+        }
+
+        // 按相似度排序，取前10个相似用户
+        List<Long> similarUsers = userSimilarityMap.entrySet().stream()
+                .sorted(java.util.Map.Entry.<Long, Integer>comparingByValue().reversed())
+                .limit(10)
+                .map(java.util.Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        // 获取这些相似用户点赞的其他博客
+        Set<String> recommendBlogIds = new java.util.HashSet<>();
+        for (Long similarUid : similarUsers) {
+            String otherLikeKey = "user:like:" + similarUid;
+            Set<String> otherLikes = stringRedisTemplate.opsForZSet().range(otherLikeKey, 0, -1);
+            if (otherLikes != null) {
+                for (String blogId : otherLikes) {
+                    if (!likedBlogs.contains(blogId)) {
+                        recommendBlogIds.add(blogId);
+                    }
+                }
+            }
+        }
+
+        if (recommendBlogIds.isEmpty()) {
+            return Result.ok(Collections.emptyList());
+        }
+
+        // 查询博客详情
+        List<Long> ids = recommendBlogIds.stream()
+                .map(Long::valueOf)
+                .collect(Collectors.toList());
+
+        List<Blog> blogs = query().in("id", ids).orderByDesc("liked").last("limit 10").list();
+        blogs.forEach(b -> {
+            queryBlogUser(b);
+            isBlogLiked(b);
+        });
+
+        return Result.ok(blogs);
+    }
+
+
 }
