@@ -1,5 +1,6 @@
 package com.hmdp.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -12,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
  * RabbitMQ配置类
  * 包含秒杀订单和用户日志的消息队列配置
  */
+@Slf4j
 @Configuration
 public class RabbitMQConfig {
 
@@ -83,15 +85,16 @@ public class RabbitMQConfig {
         // 生产者确认回调
         rabbitTemplate.setConfirmCallback((correlationData, ack, cause) -> {
             if (ack) {
-                // 消息成功到达交换机
+                log.info("消息成功到达交换机, correlationData: {}", correlationData);
             } else {
-                // 消息未到达交换机，可以记录日志或重试
+                log.error("消息未到达交换机, cause: {}, correlationData: {}", cause, correlationData);
             }
         });
         
         // 消息不可达回调（兼容Spring Boot 2.3.x版本）
         rabbitTemplate.setReturnCallback((message, replyCode, replyText, exchange, routingKey) -> {
-            // 消息未路由到队列，记录日志
+            log.error("消息未路由到队列! replyCode: {}, replyText: {}, exchange: {}, routingKey: {}", 
+                    replyCode, replyText, exchange, routingKey);
         });
         
         return rabbitTemplate;

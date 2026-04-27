@@ -4,6 +4,7 @@ local userId = ARGV[2];
 local stockKey = 'seckill:stock:' .. voucherId;
 local orderKey = 'seckill:order:' .. voucherId;
 
+
 local stock = redis.call('get', stockKey);
 stock = tonumber(stock) or 0;
 

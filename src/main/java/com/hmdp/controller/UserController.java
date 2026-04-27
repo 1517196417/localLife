@@ -106,5 +106,27 @@ public class UserController {
     public Result signCount() {
         return userService.signCount();
     }
+    
+    @GetMapping("/sign/status")
+    public Result signStatus() {
+        return userService.hasSignedToday();
+    }
+
+    /**
+     * 更新用户资料（昵称、头像）
+     */
+    @PutMapping("/update")
+    public Result updateUser(@RequestBody User user) {
+        return userService.updateUser(user);
+    }
+
+    /**
+     * 更新用户详细信息（城市、介绍、性别、生日）
+     */
+    @PutMapping("/info/update")
+    public Result updateUserInfo(@RequestBody UserInfo userInfo) {
+        userInfoService.updateById(userInfo);
+        return Result.ok();
+    }
 
 }

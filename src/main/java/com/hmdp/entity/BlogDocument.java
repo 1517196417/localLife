@@ -23,7 +23,6 @@ public class BlogDocument implements Serializable {
     @Field(type = FieldType.Text, analyzer = "ik_max_word")
     private String content;
 
-    private Long shopId;
 
     private Integer liked;
 
@@ -51,8 +50,6 @@ public class BlogDocument implements Serializable {
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
 
-    public Long getShopId() { return shopId; }
-    public void setShopId(Long shopId) { this.shopId = shopId; }
 
     public Integer getLiked() { return liked; }
     public void setLiked(Integer liked) { this.liked = liked; }

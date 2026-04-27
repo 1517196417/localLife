@@ -54,4 +54,35 @@ public class VoucherController {
     public Result queryVoucherOfShop(@PathVariable("shopId") Long shopId) {
        return voucherService.queryVoucherOfShop(shopId);
     }
+    
+    /**
+     * 查询我的优惠券列表
+     * @param status 优惠券状态（可选）：1-未使用，2-已使用，3-已过期
+     * @return 优惠券列表
+     */
+    @GetMapping("/my")
+    public Result queryMyVouchers(
+            @RequestParam(value = "status", required = false) Integer status) {
+        return voucherService.queryMyVouchers(status);
+    }
+    
+    /**
+     * 查询我已使用的优惠券记录
+     * @return 已使用的优惠券列表
+     */
+    @GetMapping("/my/used")
+    public Result queryMyUsedVouchers() {
+        return voucherService.queryMyUsedVouchers();
+    }
+    
+    /**
+     * 同步秒杀券库存到Redis（管理接口）
+     * TODO: 需要添加管理员权限控制
+     * @param voucherId 优惠券ID
+     * @return 同步结果
+     */
+    @PostMapping("/seckill/sync-stock/{voucherId}")
+    public Result syncSeckillStock(@PathVariable("voucherId") Long voucherId) {
+        return voucherService.syncSeckillStock(voucherId);
+    }
 }

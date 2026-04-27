@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;
 import org.springframework.data.geo.GeoResults;
+import org.springframework.data.geo.Metrics;
 import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.domain.geo.GeoReference;
@@ -93,7 +94,26 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
      */
 
     @Override
-    public Result queryShopByType(Integer typeId, Integer current, Double x, Double y) {
+    public Result queryShopByType(Integer typeId, Integer current, Double x, Double y, String name, String sortBy) {
+        // 如果有搜索关键字，优先按关键字搜索（忽略距离排序和GEO）
+        if (StrUtil.isNotBlank(name)) {
+            Page<Shop> page = query()
+                    .eq("type_id", typeId)
+                    .like("name", name)
+                    .orderBy(StrUtil.isNotBlank(sortBy), "score".equals(sortBy) || "comments".equals(sortBy), sortBy)
+                    .page(new Page<>(current, SystemConstants.DEFAULT_PAGE_SIZE));
+            return Result.ok(page.getRecords());
+        }
+
+        // 如果有sortBy且不是距离排序，直接使用数据库排序（不需要GEO距离）
+        if (StrUtil.isNotBlank(sortBy) && !"distance".equals(sortBy)) {
+            Page<Shop> page = query()
+                    .eq("type_id", typeId)
+                    .orderBy(true, false, sortBy) // 降序排列
+                    .page(new Page<>(current, SystemConstants.DEFAULT_PAGE_SIZE));
+            return Result.ok(page.getRecords());
+        }
+
         //1.判断是否需要根据距离来排序商家
         if(x == null || y == null)
         {
@@ -115,7 +135,8 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
                 .search(
                         key,
                         GeoReference.fromCoordinate(x, y),
-                        new Distance(5000),
+                        // 不限制距离范围，获取该类型下所有店铺按距离排序的结果
+                        new Distance(Long.MAX_VALUE, Metrics.KILOMETERS),
                         RedisGeoCommands.GeoSearchCommandArgs.newGeoSearchArgs().includeDistance().limit(end)
                 );
 

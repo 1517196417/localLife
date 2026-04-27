@@ -5,7 +5,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
 
 /**
  * 秒杀订单消息体
@@ -34,11 +33,6 @@ public class SeckillOrderMessage implements Serializable {
     private Long voucherId;
     
     /**
-     * 消息创建时间
-     */
-    private LocalDateTime createTime;
-    
-    /**
      * 重试次数
      */
     private Integer retryCount = 0;
@@ -47,6 +41,6 @@ public class SeckillOrderMessage implements Serializable {
         this.orderId = orderId;
         this.userId = userId;
         this.voucherId = voucherId;
-        this.createTime = LocalDateTime.now();
+        this.retryCount = 0;
     }
 }

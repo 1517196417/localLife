@@ -118,7 +118,8 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         return Result.ok(blog);
     }
 
-    private void isBlogLiked(Blog blog) {
+    @Override
+    public void isBlogLiked(Blog blog) {
         // 获取当前登录用户，如果未登录则默认未点赞
         UserDTO user = UserHolder.getUser();
         if(user == null){
@@ -243,15 +244,19 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     @Override
     public Result recommendBlogs() {
         UserDTO user = UserHolder.getUser();
+        
+        // 如果用户未登录，直接返回热门博客
         if (user == null) {
-            return Result.ok(Collections.emptyList());
+            return queryHotBlog(1);
         }
         Long userId = user.getId();
 
         String userLikeKey = "user:like:" + userId;
         Set<String> likedBlogs = stringRedisTemplate.opsForZSet().range(userLikeKey, 0, -1);
+        
+        // 如果用户没有点赞记录，返回热门博客
         if (likedBlogs == null || likedBlogs.isEmpty()) {
-            return Result.ok(Collections.emptyList());
+            return queryHotBlog(1);
         }
 
         // 统计每个点赞用户的相似度（点赞相同博客的数量）
@@ -269,8 +274,9 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
             }
         }
 
+        // 如果没有相似用户，返回热门博客
         if (userSimilarityMap.isEmpty()) {
-            return Result.ok(Collections.emptyList());
+            return queryHotBlog(1);
         }
 
         // 按相似度排序，取前10个相似用户
@@ -294,28 +300,55 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
             }
         }
 
-        if (recommendBlogIds.isEmpty()) {
-            return Result.ok(Collections.emptyList());
+        // 查询博客详情
+        List<Blog> recommendBlogs = new java.util.ArrayList<>();
+        if (!recommendBlogIds.isEmpty()) {
+            List<Long> ids = recommendBlogIds.stream()
+                    .map(Long::valueOf)
+                    .collect(Collectors.toList());
+
+            recommendBlogs = query().in("id", ids).orderByDesc("liked").last("limit 10").list();
+            recommendBlogs.forEach(b -> {
+                queryBlogUser(b);
+                isBlogLiked(b);
+            });
+        }
+        
+        // 如果推荐数据不足5条，使用热门博客补充
+        int minRecommendCount = 5;
+        if (recommendBlogs.size() < minRecommendCount) {
+            // 查询热门博客
+            Page<Blog> hotPage = query()
+                    .orderByDesc("liked")
+                    .page(new Page<>(1, SystemConstants.MAX_PAGE_SIZE));
+            List<Blog> hotBlogs = hotPage.getRecords();
+            
+            // 过滤掉已经存在的推荐博客
+            Set<Long> existingIds = recommendBlogs.stream()
+                    .map(Blog::getId)
+                    .collect(Collectors.toSet());
+            
+            for (Blog hotBlog : hotBlogs) {
+                if (!existingIds.contains(hotBlog.getId())) {
+                    queryBlogUser(hotBlog);
+                    isBlogLiked(hotBlog);
+                    recommendBlogs.add(hotBlog);
+                    
+                    // 达到10条就停止
+                    if (recommendBlogs.size() >= 10) {
+                        break;
+                    }
+                }
+            }
         }
 
-        // 查询博客详情
-        List<Long> ids = recommendBlogIds.stream()
-                .map(Long::valueOf)
-                .collect(Collectors.toList());
-
-        List<Blog> blogs = query().in("id", ids).orderByDesc("liked").last("limit 10").list();
-        blogs.forEach(b -> {
-            queryBlogUser(b);
-            isBlogLiked(b);
-        });
-
-        return Result.ok(blogs);
+        return Result.ok(recommendBlogs);
     }
 
     public BlogDocument convertToBlogDocument(Blog blog) {
         BlogDocument document = new BlogDocument();
         document.setId(blog.getId());
-        document.setShopId(blog.getShopId());
+
         document.setUserId(blog.getUserId());
         document.setTitle(blog.getTitle());
         document.setContent(blog.getContent());
@@ -325,5 +358,93 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         document.setCreateTime(blog.getCreateTime());
         document.setUpdateTime(blog.getUpdateTime());
         return document;
+    }
+    
+    @Override
+    public Result deleteBlog(Long id) {
+        // 1. 获取当前登录用户
+        UserDTO user = UserHolder.getUser();
+        if (user == null) {
+            return Result.fail("用户未登录");
+        }
+        
+        // 2. 查询笔记
+        Blog blog = getById(id);
+        if (blog == null) {
+            return Result.fail("笔记不存在");
+        }
+        
+        // 3. 校验权限（只能删除自己的笔记）
+        if (!blog.getUserId().equals(user.getId())) {
+            return Result.fail("无权删除该笔记");
+        }
+        
+        // 4. 删除笔记
+        boolean success = removeById(id);
+        if (!success) {
+            return Result.fail("删除笔记失败");
+        }
+        
+        // 5. 从Elasticsearch中删除
+        try {
+            blogRepository.deleteById(id);
+        } catch (Exception e) {
+            // ES删除失败不影响主流程，只记录日志
+            e.printStackTrace();
+        }
+        
+        return Result.ok();
+    }
+    
+    @Override
+    public Result updateBlog(Blog blog) {
+        // 1. 获取当前登录用户
+        UserDTO user = UserHolder.getUser();
+        if (user == null) {
+            return Result.fail("用户未登录");
+        }
+        
+        // 2. 查询笔记
+        Blog existingBlog = getById(blog.getId());
+        if (existingBlog == null) {
+            return Result.fail("笔记不存在");
+        }
+        
+        // 3. 校验权限（只能修改自己的笔记）
+        if (!existingBlog.getUserId().equals(user.getId())) {
+            return Result.fail("无权修改该笔记");
+        }
+        
+        // 4. 更新笔记（只更新标题、内容、图片、关联商户）
+        Blog updateBlog = new Blog();
+        updateBlog.setId(blog.getId());
+        if (blog.getTitle() != null) {
+            updateBlog.setTitle(blog.getTitle());
+        }
+        if (blog.getContent() != null) {
+            updateBlog.setContent(blog.getContent());
+        }
+        if (blog.getImages() != null) {
+            updateBlog.setImages(blog.getImages());
+        }
+        if (blog.getShopId() != null) {
+            updateBlog.setShopId(blog.getShopId());
+        }
+        
+        boolean success = updateById(updateBlog);
+        if (!success) {
+            return Result.fail("更新笔记失败");
+        }
+        
+        // 5. 更新Elasticsearch
+        try {
+            BlogDocument document = convertToBlogDocument(getById(blog.getId()));
+            blogRepository.save(document);
+        } catch (Exception e) {
+            // ES更新失败不影响主流程，只记录日志
+            e.printStackTrace();
+        }
+        
+        return Result.ok();
     }
 }

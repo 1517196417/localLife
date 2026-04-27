@@ -1,15 +1,15 @@
 package com.hmdp.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
-import com.hmdp.entity.BlogComments;
+import com.hmdp.entity.ShopComments;
 import com.hmdp.entity.User;
-import com.hmdp.mapper.BlogCommentsMapper;
-import com.hmdp.service.IBlogCommentsService;
+import com.hmdp.mapper.ShopCommentsMapper;
+import com.hmdp.service.IShopCommentsService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.UserHolder;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,22 +20,22 @@ import java.util.stream.Collectors;
 
 /**
  * <p>
- *  服务实现类
+ * 商铺评论服务实现类
  * </p>
  *
- * @author 虎哥
- * @since 2021-12-22
+ * @author localLife
+ * @since 2026-04-25
  */
 @Slf4j
 @Service
-public class BlogCommentsServiceImpl extends ServiceImpl<BlogCommentsMapper, BlogComments> implements IBlogCommentsService {
+public class ShopCommentsServiceImpl extends ServiceImpl<ShopCommentsMapper, ShopComments> implements IShopCommentsService {
 
     @Resource
     private IUserService userService;
 
     @Override
     @Transactional
-    public Result addComment(Long blogId, String content, String images) {
+    public Result addShopComment(Long shopId, String content, String images) {
         try {
             // 1. 获取当前登录用户
             UserDTO userDTO = UserHolder.getUser();
@@ -53,8 +53,8 @@ public class BlogCommentsServiceImpl extends ServiceImpl<BlogCommentsMapper, Blo
             }
             
             // 3. 创建评论对象
-            BlogComments comment = new BlogComments();
-            comment.setBlogId(blogId);
+            ShopComments comment = new ShopComments();
+            comment.setShopId(shopId);
             comment.setUserId(userId);
             comment.setContent(content.trim());
             comment.setImages(images);
@@ -69,31 +69,31 @@ public class BlogCommentsServiceImpl extends ServiceImpl<BlogCommentsMapper, Blo
                 return Result.fail("评论失败，请稍后重试");
             }
             
-            log.info("用户 {} 对笔记 {} 发表评论: {}", userId, blogId, content);
+            log.info("用户 {} 对商铺 {} 发表评论: {}", userId, shopId, content);
             return Result.ok(comment);
         } catch (Exception e) {
-            log.error("发表评论异常", e);
+            log.error("发表商铺评论异常", e);
             return Result.fail("评论失败，请稍后重试");
         }
     }
 
     @Override
-    public Result getCommentsByBlogId(Long blogId) {
+    public Result getCommentsByShopId(Long shopId) {
         try {
-            // 1. 查询评论列表（按时间倒序，只查询正常状态的评论）
-            QueryWrapper<BlogComments> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("blog_id", blogId)
+            // 1. 查询商铺评论列表（按时间倒序，只查询正常状态的评论）
+            QueryWrapper<ShopComments> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("shop_id", shopId)
                        .eq("status", false) // 0-正常
                        .orderByDesc("create_time");
             
-            List<BlogComments> comments = list(queryWrapper);
+            List<ShopComments> comments = list(queryWrapper);
             
             // 2. 填充用户信息
             List<CommentVO> commentVOList = comments.stream().map(comment -> {
                 CommentVO vo = new CommentVO();
                 vo.setId(comment.getId());
                 vo.setUserId(comment.getUserId());
-                vo.setBlogId(comment.getBlogId());
+                vo.setShopId(comment.getShopId());
                 vo.setContent(comment.getContent());
                 vo.setImages(comment.getImages());
                 vo.setLiked(comment.getLiked());
@@ -111,7 +111,7 @@ public class BlogCommentsServiceImpl extends ServiceImpl<BlogCommentsMapper, Blo
             
             return Result.ok(commentVOList);
         } catch (Exception e) {
-            log.error("查询评论列表异常", e);
+            log.error("查询商铺评论列表异常", e);
             return Result.fail("查询失败，请稍后重试");
         }
     }
@@ -125,13 +125,14 @@ public class BlogCommentsServiceImpl extends ServiceImpl<BlogCommentsMapper, Blo
             if (userDTO == null) {
                 return Result.fail("请先登录");
             }
+            
             // 2. 查询评论是否存在
-            BlogComments comment = getById(commentId);
+            ShopComments comment = getById(commentId);
             if (comment == null) {
                 return Result.fail("评论不存在");
             }
             
-            // 2. 点赞数 +1
+            // 3. 点赞数 +1
             comment.setLiked(comment.getLiked() + 1);
             boolean success = updateById(comment);
             
@@ -159,7 +160,7 @@ public class BlogCommentsServiceImpl extends ServiceImpl<BlogCommentsMapper, Blo
             Long userId = userDTO.getId();
             
             // 2. 查询评论
-            BlogComments comment = getById(commentId);
+            ShopComments comment = getById(commentId);
             if (comment == null) {
                 return Result.fail("评论不存在");
             }
@@ -192,7 +193,7 @@ public class BlogCommentsServiceImpl extends ServiceImpl<BlogCommentsMapper, Blo
     static class CommentVO {
         private Long id;
         private Long userId;
-        private Long blogId;
+        private Long shopId;
         private String content;
         private String images;
         private Integer liked;

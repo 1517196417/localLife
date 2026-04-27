@@ -1,13 +1,19 @@
 package com.hmdp.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.SeckillOrderMessage;
 import com.hmdp.dto.UserDTO;
+import com.hmdp.entity.SeckillVoucher;
+import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.producer.SeckillOrderProducer;
+import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
@@ -16,9 +22,11 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * <p>
@@ -40,6 +48,12 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     
     @Autowired
     private SeckillOrderProducer seckillOrderProducer;
+    
+    @Autowired
+    private IVoucherService voucherService;
+    
+    @Autowired
+    private ISeckillVoucherService seckillVoucherService;
 
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
     static {
@@ -80,6 +94,153 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         
         log.info("秒杀订单请求已提交，orderId: {}, userId: {}, voucherId: {}", orderId, userId, voucherId);
         return Result.ok(orderId);
+    }
+    
+    @Override
+    @Transactional
+    public Result orderVoucher(Long voucherId) {
+        // 1. 获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        
+        // 2. 查询优惠券信息
+        Voucher voucher = voucherService.getById(voucherId);
+        if (voucher == null) {
+            return Result.fail("优惠券不存在");
+        }
+        
+        // 3. 判断是否是秒杀券(秒杀券必须走秒杀接口)
+        // 通过查询是否有秒杀信息来判断
+        SeckillVoucher seckillVoucher = seckillVoucherService.getById(voucherId);
+        if (seckillVoucher != null) {
+            return Result.fail("秒杀券请使用秒杀接口购买");
+        }
+        
+        // 4. 普通优惠券不限购，可以购买多张，直接创建订单
+        VoucherOrder voucherOrder = new VoucherOrder();
+        long orderId = redisIdWorker.nextId("order");
+        voucherOrder.setId(orderId);
+        voucherOrder.setUserId(userId);
+        voucherOrder.setVoucherId(voucherId);
+        voucherOrder.setStatus(1); // 1-未支付
+        
+        boolean success = save(voucherOrder);
+        if (!success) {
+            log.error("创建订单失败，userId: {}, voucherId: {}", userId, voucherId);
+            return Result.fail("创建订单失败");
+        }
+        
+        log.info("普通优惠券订单创建成功，orderId: {}, userId: {}, voucherId: {}", orderId, userId, voucherId);
+        return Result.ok(orderId);
+    }
+    
+    @Override
+    public Result queryMyOrders(Integer current, Integer status) {
+        // 1. 获取当前登录用户
+        UserDTO user = UserHolder.getUser();
+        if (user == null) {
+            return Result.fail("用户未登录");
+        }
+        
+        // 2. 构建查询条件
+        LambdaQueryWrapper<VoucherOrder> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(VoucherOrder::getUserId, user.getId());
+        
+        // 3. 如果指定了状态，按状态筛选
+        if (status != null) {
+            queryWrapper.eq(VoucherOrder::getStatus, status);
+        }
+        
+        // 4. 按创建时间降序排列
+        queryWrapper.orderByDesc(VoucherOrder::getCreateTime);
+        
+        // 5. 分页查询
+        Page<VoucherOrder> page = new Page<>(current, 10);
+        page(page, queryWrapper);
+        
+        return Result.ok(page);
+    }
+    
+    @Override
+    public Result queryOrderById(Long id) {
+        // 1. 获取当前登录用户
+        UserDTO user = UserHolder.getUser();
+        if (user == null) {
+            return Result.fail("用户未登录");
+        }
+        
+        // 2. 查询订单详情
+        VoucherOrder order = getById(id);
+        if (order == null) {
+            return Result.fail("订单不存在");
+        }
+        
+        // 3. 验证订单归属（只能查看自己的订单）
+        if (!order.getUserId().equals(user.getId())) {
+            return Result.fail("无权查看该订单");
+        }
+        
+        return Result.ok(order);
+    }
+    
+    @Override
+    public Result cancelOrder(Long id) {
+        // 1. 获取当前登录用户
+        UserDTO user = UserHolder.getUser();
+        if (user == null) {
+            return Result.fail("用户未登录");
+        }
+        
+        // 2. 查询订单
+        VoucherOrder order = getById(id);
+        if (order == null) {
+            return Result.fail("订单不存在");
+        }
+        
+        // 3. 验证订单归属
+        if (!order.getUserId().equals(user.getId())) {
+            return Result.fail("无权操作该订单");
+        }
+        
+        // 4. 只有未支付和已支付的订单可以取消
+        if (order.getStatus() != 1 && order.getStatus() != 2) {
+            return Result.fail("该订单状态不允许取消");
+        }
+        
+        // 5. 更新订单状态为已取消（4）
+        order.setStatus(4);
+        updateById(order);
+        
+        return Result.ok();
+    }
+    
+    @Override
+    public Result deleteOrder(Long id) {
+        // 1. 获取当前登录用户
+        UserDTO user = UserHolder.getUser();
+        if (user == null) {
+            return Result.fail("用户未登录");
+        }
+        
+        // 2. 查询订单
+        VoucherOrder order = getById(id);
+        if (order == null) {
+            return Result.fail("订单不存在");
+        }
+        
+        // 3. 验证订单归属
+        if (!order.getUserId().equals(user.getId())) {
+            return Result.fail("无权操作该订单");
+        }
+        
+        // 4. 只有已取消、已完成、已退款的订单可以删除
+        if (order.getStatus() != 4 && order.getStatus() != 3 && order.getStatus() != 6) {
+            return Result.fail("该订单状态不允许删除");
+        }
+        
+        // 5. 删除订单
+        removeById(id);
+        
+        return Result.ok();
     }
 
 //同步线性下单秒杀

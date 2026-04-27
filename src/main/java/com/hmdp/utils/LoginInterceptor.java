@@ -14,9 +14,9 @@ public class LoginInterceptor implements HandlerInterceptor {
     public  boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         //只负责拦截需要验证登录状态的请求
         UserDTO user = UserHolder.getUser();
-        System.out.println("UserHolder.getUser()：" + user);
+
         if ( user == null) {
-            System.out.println("UserHolder.getUser()为空");
+
             response.setStatus(401);
             return false;
         }

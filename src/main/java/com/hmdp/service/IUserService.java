@@ -25,4 +25,15 @@ public interface IUserService extends IService<User> {
     Result sign();
 
     Result signCount();
+    
+    /**
+     * 检查今天是否已签到
+     * @return 是否已签到
+     */
+    Result hasSignedToday();
+
+    /**
+     * 更新用户基本信息（昵称、头像）
+     */
+    Result updateUser(User user);
 }

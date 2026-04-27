@@ -22,10 +22,7 @@ import javax.servlet.http.HttpSession;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.RedisConstants.*;
@@ -217,5 +214,67 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
 
         return Result.ok(count);
+    }
+    
+    @Override
+    public Result hasSignedToday() {
+        //1.获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        //2.获取当前时间
+        LocalDateTime now = LocalDateTime.now();
+        String signSuffix = now.format(DateTimeFormatter.ofPattern("yyyy:MM:"));
+        String signKey = USER_SIGN_KEY + userId + signSuffix;
+        
+        //3.获取当日是本月的第几天
+        int dayOfMonth = now.getDayOfMonth();
+        
+        //4.检查今天是否已签到
+        Boolean signed = stringRedisTemplate.opsForValue().getBit(signKey, dayOfMonth - 1);
+        
+        return Result.ok(signed != null && signed);
+    }
+
+    @Override
+    public Result updateUser(User user) {
+        // 1. 获取当前登录用户ID
+        Long userId = UserHolder.getUser().getId();
+        user.setId(userId);
+        
+        // 2. 更新数据库
+        updateById(user);
+        
+        // 3. 更新Redis缓存中的用户信息
+        UserDTO userDTO = UserHolder.getUser();
+        if (user.getNickName() != null) {
+            userDTO.setNickName(user.getNickName());
+        }
+        if (user.getIcon() != null) {
+            userDTO.setIcon(user.getIcon());
+        }
+        
+        // 4. 同步更新Redis中所有该用户的token缓存（匹配 prefix + * 的keys）
+        // 由于存在多个设备同时登录的情况，需要更新所有token
+        try {
+            Set<String> keys = stringRedisTemplate.keys(LOGIN_USER_KEY + "*");
+            if (keys != null && !keys.isEmpty()) {
+                for (String key : keys) {
+                    // 检查这个key是否包含当前用户的ID
+                    String nickName = (String) stringRedisTemplate.opsForHash().get(key, "nickName");
+                    String idStr = (String) stringRedisTemplate.opsForHash().get(key, "id");
+                    if (idStr != null && idStr.equals(userId.toString())) {
+                        if (user.getNickName() != null) {
+                            stringRedisTemplate.opsForHash().put(key, "nickName", user.getNickName());
+                        }
+                        if (user.getIcon() != null) {
+                            stringRedisTemplate.opsForHash().put(key, "icon", user.getIcon());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("更新Redis缓存失败", e);
+        }
+        
+        return Result.ok();
     }
 }

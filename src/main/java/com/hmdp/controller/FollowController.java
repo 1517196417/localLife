@@ -43,5 +43,16 @@ public class FollowController {
         return followService.followCommon(id);
     }
 
+    //查询粉丝列表
+    @GetMapping("/fans/{userId}")
+    public Result fansList(@PathVariable Long userId) {
+        return followService.fansList(userId);
+    }
+
+    //查询关注列表
+    @GetMapping("/list/{userId}")
+    public Result followList(@PathVariable Long userId) {
+        return followService.followList(userId);
+    }
 
 }

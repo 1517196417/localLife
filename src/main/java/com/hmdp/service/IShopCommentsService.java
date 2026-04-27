@@ -1,35 +1,34 @@
 package com.hmdp.service;
 
-import com.hmdp.dto.Result;
-import com.hmdp.entity.BlogComments;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.hmdp.dto.Result;
+import com.hmdp.entity.ShopComments;
 
 /**
  * <p>
- *  服务类
+ * 商铺评论服务类
  * </p>
  *
- * @author 虎哥
- * @since 2021-12-22
+ * @author localLife
+ * @since 2026-04-25
  */
-
-public interface IBlogCommentsService extends IService<BlogComments> {
+public interface IShopCommentsService extends IService<ShopComments> {
 
     /**
-     * 发表评论（一级评论，针对博客）
-     * @param blogId 笔记ID
+     * 发表商铺评论
+     * @param shopId 商铺ID
      * @param content 评论内容
      * @param images 评论图片，多个图片以逗号分隔
      * @return 操作结果
      */
-    Result addComment(Long blogId, String content, String images);
+    Result addShopComment(Long shopId, String content, String images);
 
     /**
-     * 查询博客评论列表（按时间倒序）
-     * @param blogId 笔记ID
+     * 查询商铺评论列表（按时间倒序）
+     * @param shopId 商铺ID
      * @return 评论列表
      */
-    Result getCommentsByBlogId(Long blogId);
+    Result getCommentsByShopId(Long shopId);
 
     /**
      * 点赞评论

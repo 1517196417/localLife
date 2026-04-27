@@ -9,6 +9,7 @@ import com.hmdp.entity.Blog;
 import com.hmdp.entity.BlogDocument;
 import com.hmdp.entity.User;
 import com.hmdp.repository.BlogRepository;
+import com.hmdp.service.IBlogCommentsService;
 import com.hmdp.service.IBlogService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.SystemConstants;
@@ -36,12 +37,25 @@ public class BlogController {
     @Resource
     private BlogRepository blogRepository;
 
+    @Resource
+    private IBlogCommentsService blogCommentsService;
+
 
     @PostMapping
     public Result saveBlog(@RequestBody Blog blog) {
 
         return blogService.saveBlog(blog);
 
+    }
+    
+    /**
+     * 更新笔记（使用POST方法，避开PUT方法的问题）
+     * @param blog 笔记信息
+     * @return 更新结果
+     */
+    @PostMapping("/update")
+    public Result updateBlog(@RequestBody Blog blog) {
+        return blogService.updateBlog(blog);
     }
 
     @PutMapping("/like/{id}")
@@ -59,6 +73,13 @@ public class BlogController {
                 .eq("user_id", user.getId()).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 获取当前页数据
         List<Blog> records = page.getRecords();
+        // 查询每个博客的点赞状态和评论数
+        records.forEach(blog -> {
+            blogService.isBlogLiked(blog);
+            // 统计该博客的评论数
+            int  count = blogCommentsService.query().eq("blog_id", blog.getId()).count();
+            blog.setComments(count);
+        });
         return Result.ok(records);
     }
 
@@ -84,6 +105,13 @@ public class BlogController {
         Page<Blog> page = blogService.query()
                 .eq("user_id", id).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         List<Blog> records = page.getRecords();
+        // 查询每个博客的点赞状态和评论数
+        records.forEach(blog -> {
+            blogService.isBlogLiked(blog);
+            // 统计该博客的评论数
+            int count = blogCommentsService.query().eq("blog_id", blog.getId()).count();
+            blog.setComments(count);
+        });
         return Result.ok(records);
 
     }
@@ -109,4 +137,16 @@ public class BlogController {
         List<BlogDocument> documents = blogRepository.findByTitleContainingOrContentContaining(keyword, keyword);
         return Result.ok(documents);
     }
+    
+    /**
+     * 删除我的笔记
+     * @param id 笔记ID
+     * @return 删除结果
+     */
+    @DeleteMapping("/{id}")
+    public Result deleteBlog(@PathVariable("id") Long id) {
+        return blogService.deleteBlog(id);
+    }
+    
+
 }

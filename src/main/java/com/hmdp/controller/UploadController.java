@@ -25,11 +25,19 @@ public class UploadController {
             // 生成新文件名
             String fileName = createNewFileName(originalFilename);
             // 保存文件
-            image.transferTo(new File(SystemConstants.IMAGE_UPLOAD_DIR, fileName));
+            File destFile = new File(SystemConstants.IMAGE_UPLOAD_DIR, fileName);
+            log.info("文件上传路径: {}", destFile.getAbsolutePath());
+            image.transferTo(destFile);
+            // 验证文件是否保存成功
+            if (destFile.exists()) {
+                log.info("文件上传成功: {}, 大小: {} bytes", fileName, destFile.length());
+            } else {
+                log.error("文件保存失败: {}", fileName);
+            }
             // 返回结果
-            log.debug("文件上传成功，{}", fileName);
             return Result.ok(fileName);
         } catch (IOException e) {
+            log.error("文件上传异常", e);
             throw new RuntimeException("文件上传失败", e);
         }
     }

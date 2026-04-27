@@ -19,7 +19,7 @@ public interface IShopService extends IService<Shop> {
 
     Object queryById(Long id);
 
-    Result queryShopByType(Integer typeId, Integer current, Double x, Double y);
+    Result queryShopByType(Integer typeId, Integer current, Double x, Double y, String name, String sortBy);
     
     /**
      * 将商铺数据保存到Redis（用于缓存预热）

@@ -72,10 +72,10 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
     @Override
     public Result isFollow(Long id) {
         Long userId = UserHolder.getUser().getId();
-        query().eq("user_id", userId)
+        Integer count = query().eq("user_id", userId)
                 .eq("follow_user_id", id)
                 .count();
-        return Result.ok(count() > 0);
+        return Result.ok(count > 0);
     }
 
     //查询共同关注
@@ -89,6 +89,36 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
         }
 
         List<Long> userIds = intersect.stream().map(Long::valueOf).collect(Collectors.toList());
+        List<UserDTO> userDTOs = userService.listByIds(userIds).stream()
+                .map(user -> BeanUtil.copyProperties(user, UserDTO.class))
+                .collect(Collectors.toList());
+        return Result.ok(userDTOs);
+    }
+
+    //查询粉丝列表
+    @Override
+    public Result fansList(Long userId) {
+        // 粉丝：follow_user_id = userId 的那些记录，其 user_id 就是粉丝
+        List<Follow> follows = query().eq("follow_user_id", userId).list();
+        if (follows.isEmpty()) {
+            return Result.ok(Collections.emptyList());
+        }
+        List<Long> userIds = follows.stream().map(Follow::getUserId).collect(Collectors.toList());
+        List<UserDTO> userDTOs = userService.listByIds(userIds).stream()
+                .map(user -> BeanUtil.copyProperties(user, UserDTO.class))
+                .collect(Collectors.toList());
+        return Result.ok(userDTOs);
+    }
+
+    //查询关注列表
+    @Override
+    public Result followList(Long userId) {
+        // 关注：user_id = userId 的那些记录，其 follow_user_id 就是关注的人
+        List<Follow> follows = query().eq("user_id", userId).list();
+        if (follows.isEmpty()) {
+            return Result.ok(Collections.emptyList());
+        }
+        List<Long> userIds = follows.stream().map(Follow::getFollowUserId).collect(Collectors.toList());
         List<UserDTO> userDTOs = userService.listByIds(userIds).stream()
                 .map(user -> BeanUtil.copyProperties(user, UserDTO.class))
                 .collect(Collectors.toList());

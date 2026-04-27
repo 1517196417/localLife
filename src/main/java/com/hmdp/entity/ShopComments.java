@@ -12,17 +12,17 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ * 商铺评论表
  * </p>
  *
- * @author 虎哥
- * @since 2021-12-22
+ * @author localLife
+ * @since 2026-04-25
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("tb_blog_comments")
-public class BlogComments implements Serializable {
+@TableName("tb_shop_comments")
+public class ShopComments implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -38,9 +38,9 @@ public class BlogComments implements Serializable {
     private Long userId;
 
     /**
-     * 探店id（博客笔记id）
+     * 商铺id
      */
-    private Long blogId;
+    private Long shopId;
 
     /**
      * 关联的1级评论id，如果是一级评论，则值为0
@@ -58,6 +58,11 @@ public class BlogComments implements Serializable {
     private String content;
 
     /**
+     * 评论图片，多个图片以逗号分隔
+     */
+    private String images;
+
+    /**
      * 点赞数
      */
     private Integer liked;
@@ -68,11 +73,6 @@ public class BlogComments implements Serializable {
     private Boolean status;
 
     /**
-     * 评论图片，多个图片以逗号分隔
-     */
-    private String images;
-
-    /**
      * 创建时间
      */
     private LocalDateTime createTime;
@@ -81,6 +81,5 @@ public class BlogComments implements Serializable {
      * 更新时间
      */
     private LocalDateTime updateTime;
-
 
 }

@@ -28,4 +28,24 @@ public interface IBlogService extends IService<Blog> {
 
     Result recommendBlogs();
     Result queryBlogOfFollows(Long max, Integer offset);
+    
+    /**
+     * 检查博客是否被当前用户点赞
+     * @param blog 博客对象
+     */
+    void isBlogLiked(Blog blog);
+    
+    /**
+     * 删除我的笔记
+     * @param id 笔记ID
+     * @return 删除结果
+     */
+    Result deleteBlog(Long id);
+    
+    /**
+     * 更新我的笔记
+     * @param blog 笔记信息
+     * @return 更新结果
+     */
+    Result updateBlog(Blog blog);
 }

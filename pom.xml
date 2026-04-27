@@ -169,6 +169,15 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>
+                        com/hmdp/HmDianPingApplication.java
+                    </mainClass>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
