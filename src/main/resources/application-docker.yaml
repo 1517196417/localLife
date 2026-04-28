@@ -45,6 +45,9 @@ spring:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8
 
+app:
+  upload-dir: /home/app/nginx/html/imgs
+
 mybatis-plus:
   type-aliases-package: com.hmdp.entity
 

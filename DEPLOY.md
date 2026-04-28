@@ -79,7 +79,7 @@ docker compose version   # 检查 Docker Compose 是否安装
 ```bash
 mkdir -p /home/app/locallife
 mkdir -p /home/app/nginx/html
-mkdir -p /home/app/hm-dianping/logs
+mkdir -p /home/app/locallife/logs
 ```
 
 ### 2.4 创建基础设施 Docker Compose 文件
@@ -162,6 +162,8 @@ docker compose -f docker-compose-infra.yml logs
 
 ## 3. 数据库初始化
 
+> 项目代码中的数据库名是 **`hmdp`**（见 `application.yaml` 第8行），不是 `locallife`。
+
 ### 3.1 导出本地数据库
 
 在本地开发机用 MySQL 客户端（如 Navicat、DBeaver、HeidiSQL 等）导出 `hmdp` 数据库为 `.sql` 文件。
@@ -169,7 +171,7 @@ docker compose -f docker-compose-infra.yml logs
 或者用命令行导出：
 
 ```bash
-mysqldump -uroot -p hmdp > hmdp.sql
+mysqldump -uroot -p hmdp > locallife-init.sql
 ```
 
 ### 3.2 将 SQL 文件传给服务器
@@ -189,11 +191,14 @@ mysqldump -uroot -p hmdp > hmdp.sql
 # SSH 登录服务器
 ssh root@120.55.195.171
 
-# 把 SQL 文件导入 Docker 中的 MySQL
-docker exec -i mysql mysql -uroot -proot123456 hmdp < /home/app/locallife/hmdp.sql
+# 把 SQL 文件导入 Docker 中的 MySQL（注意数据库名是 hmdp）
+docker exec -i mysql mysql -uroot -proot123456 hmdp < /home/app/locallife/locallife-init.sql
 ```
 
-### 3.3 验证数据库
+> ⚠️ **常见问题**：如果报错 `Unknown collation: 'utf8mb4_0900_ai_ci'`，说明你的 SQL 是 MySQL 8.0 导出的，而 Docker 里是 MySQL 5.7。
+> **解决方法**：在服务器上先运行 `sed -i 's/utf8mb4_0900_ai_ci/utf8mb4_general_ci/g' /home/app/locallife/locallife-init.sql`，再重新导入。
+
+### 3.4 验证数据库
 
 ```bash
 docker exec -i mysql mysql -uroot -proot123456 hmdp -e "SHOW TABLES;"
@@ -222,21 +227,21 @@ git clone https://github.com/1517196417/localLife.git . 2>/dev/null || git pull
 mvn clean package -DskipTests
 
 # 构建 Docker 镜像
-docker build -t locallife/hm-dianping:0.0.1-SNAPSHOT .
+docker build -t locallife/locallife:0.0.1-SNAPSHOT .
 
 # 运行容器（加入 locallife 网络，使用 docker 配置）
 docker run -d \
-  --name hm-dianping \
+  --name locallife \
   --network locallife \
   -p 8081:8081 \
   -e JAVA_OPTS="-Xms256m -Xmx256m" \
   -e SPRING_ARGS="--spring.profiles.active=docker" \
-  -v /home/app/hm-dianping/logs:/tmp/logs \
+  -v /home/app/locallife/logs:/tmp/logs \
   --restart unless-stopped \
-  locallife/hm-dianping:0.0.1-SNAPSHOT
+  locallife/locallife:0.0.1-SNAPSHOT
 
 # 查看启动日志
-docker logs -f hm-dianping
+docker logs -f locallife
 ```
 
 ### 4.2 方案B：本地构建，上传 JAR 到服务器部署（无需服务器安装 Maven/Git）
@@ -251,39 +256,38 @@ cd D:/javacode/github_code/localLife/localLife
 mvn clean package -DskipTests
 
 # 2. 将 JAR 包和 Dockerfile 上传到服务器
-scp target/hm-dianping-0.0.1-SNAPSHOT.jar root@120.55.195.171:/home/app/locallife/
-scp Dockerfile root@120.55.195.171:/home/app/locallife/
+#    可用 WinSCP/FinalShell 拖拽上传到 /home/app/locallife/
+#    JAR 在 target/hm-dianping-0.0.1-SNAPSHOT.jar
 
 # === 服务器操作 ===
 ssh root@120.55.195.171
 cd /home/app/locallife
 
 # 3. 在服务器上构建 Docker 镜像
-docker build -t locallife/hm-dianping:0.0.1-SNAPSHOT .
+docker build -t locallife/locallife:0.0.1-SNAPSHOT .
 
 # 4. 运行容器
 docker run -d \
-  --name hm-dianping \
+  --name locallife \
   --network locallife \
   -p 8081:8081 \
   -e JAVA_OPTS="-Xms256m -Xmx256m" \
   -e SPRING_ARGS="--spring.profiles.active=docker" \
-  -v /home/app/hm-dianping/logs:/tmp/logs \
+  -v /home/app/locallife/logs:/tmp/logs \
   --restart unless-stopped \
-  locallife/hm-dianping:0.0.1-SNAPSHOT
+  locallife/locallife:0.0.1-SNAPSHOT
 
 # 查看启动日志
-docker logs -f hm-dianping
+docker logs -f locallife
 ```
 
-### 4.4 修改图片上传路径
+### 4.3 修改图片上传路径
 
 在部署前，需要修改 `SystemConstants.java` 中的图片上传路径，**否则上传功能会报错**：
 
 ```bash
-# 在服务器上创建图片上传目录（与后端容器映射一致）
-# 需要修改 SystemConstants.IMAGE_UPLOAD_DIR 为服务器路径
-# 或者在 application-docker.yaml 中增加配置覆盖
+# 在服务器上创建图片上传目录
+mkdir -p /home/app/nginx/html/imgs
 ```
 
 建议将图片存储在 Nginx 的静态目录下，并新增一个配置类从 `application-docker.yaml` 读取：
@@ -304,9 +308,10 @@ app:
 
 **同样推荐使用图形化工具上传**（WinSCP、FinalShell、宝塔等）：
 
-- 本地目录：项目中的 `hmdp/` 文件夹
+- 本地目录：项目中的 `hmdp/` 文件夹（用 WinSCP/FinalShell 打开此目录）
 - 服务器目标目录：`/home/app/nginx/html/`
-- 直接选中 `hmdp/` 下的所有文件，拖拽上传即可
+- 操作方式：**在本地打开 `hmdp/` 文件夹，按 Ctrl+A 全选所有文件和子文件夹，拖拽到服务器的 `/home/app/nginx/html/` 目录**
+- 不要直接把 `hmdp/` 整个文件夹拖过去，否则访问首页会变成 `http://120.55.195.171/hmdp/` 而不是 `http://120.55.195.171/`
 
 > 如果后续更新了前端文件，重新上传覆盖到 `/home/app/nginx/html/` 即可。
 
@@ -409,7 +414,7 @@ docker ps
 # - redis
 # - rabbitmq
 # - elasticsearch
-# - hm-dianping
+# - locallife
 ```
 
 ### 6.2 验证后端 API
@@ -429,8 +434,8 @@ curl http://127.0.0.1:8081/api/shop-type/list
 ### 6.4 查看后端日志（如遇问题）
 
 ```bash
-docker logs -f hm-dianping           # 实时日志
-docker logs --tail 100 hm-dianping   # 最近100行日志
+docker logs -f locallife           # 实时日志
+docker logs --tail 100 locallife   # 最近100行日志
 ```
 
 ---
@@ -441,7 +446,7 @@ docker logs --tail 100 hm-dianping   # 最近100行日志
 
 ```bash
 # 重启后端
-docker restart hm-dianping
+docker restart locallife
 
 # 重启基础设施
 cd /home/app/locallife
@@ -458,26 +463,26 @@ systemctl restart nginx
 cd /home/app/locallife
 git pull
 mvn clean package -DskipTests
-docker stop hm-dianping && docker rm hm-dianping
-docker build -t locallife/hm-dianping:0.0.1-SNAPSHOT .
-docker run -d --name hm-dianping --network locallife -p 8081:8081 \
+docker stop locallife && docker rm locallife
+docker build -t locallife/locallife:0.0.1-SNAPSHOT .
+docker run -d --name locallife --network locallife -p 8081:8081 \
   -e SPRING_ARGS="--spring.profiles.active=docker" \
-  -v /home/app/hm-dianping/logs:/tmp/logs \
+  -v /home/app/locallife/logs:/tmp/logs \
   --restart unless-stopped \
-  locallife/hm-dianping:0.0.1-SNAPSHOT
+  locallife/locallife:0.0.1-SNAPSHOT
 
 # 方案B：本地构建 JAR 上传到服务器
 # 本地执行：
 mvn clean package -DskipTests
-scp target/hm-dianping-0.0.1-SNAPSHOT.jar root@120.55.195.171:/home/app/locallife/
+# 将 target/hm-dianping-0.0.1-SNAPSHOT.jar 拖拽上传到 /home/app/locallife/
 # 服务器执行：
-docker stop hm-dianping && docker rm hm-dianping
-docker build -t locallife/hm-dianping:0.0.1-SNAPSHOT .
-docker run -d --name hm-dianping --network locallife -p 8081:8081 \
+docker stop locallife && docker rm locallife
+docker build -t locallife/locallife:0.0.1-SNAPSHOT .
+docker run -d --name locallife --network locallife -p 8081:8081 \
   -e SPRING_ARGS="--spring.profiles.active=docker" \
-  -v /home/app/hm-dianping/logs:/tmp/logs \
+  -v /home/app/locallife/logs:/tmp/logs \
   --restart unless-stopped \
-  locallife/hm-dianping:0.0.1-SNAPSHOT
+  locallife/locallife:0.0.1-SNAPSHOT
 ```
 
 ### 7.3 更新前端
@@ -495,7 +500,7 @@ docker exec mysql mysqldump -uroot -proot123456 hmdp > /home/app/backup/hmdp_$(d
 
 ```bash
 # 后端日志
-tail -f /home/app/hm-dianping/logs/spring-boot.log
+tail -f /home/app/locallife/logs/spring-boot.log
 
 # Nginx 日志
 tail -f /var/log/nginx/access.log
@@ -567,18 +572,18 @@ cd /home/app/locallife
 docker compose -f docker-compose-infra.yml up -d
 
 # 2. 导入数据库
-docker exec -i mysql mysql -uroot -proot123456 hmdp < hmdp.sql
+docker exec -i mysql mysql -uroot -proot123456 hmdp < /home/app/locallife/locallife-init.sql
 
 # 3. 构建并运行后端（方案A）
 cd /home/app/locallife
 git pull
 mvn clean package -DskipTests
-docker build -t locallife/hm-dianping:0.0.1-SNAPSHOT .
-docker run -d --name hm-dianping --network locallife -p 8081:8081 \
+docker build -t locallife/locallife:0.0.1-SNAPSHOT .
+docker run -d --name locallife --network locallife -p 8081:8081 \
   -e SPRING_ARGS="--spring.profiles.active=docker" \
-  -v /home/app/hm-dianping/logs:/tmp/logs \
+  -v /home/app/locallife/logs:/tmp/logs \
   --restart unless-stopped \
-  locallife/hm-dianping:0.0.1-SNAPSHOT
+  locallife/locallife:0.0.1-SNAPSHOT
 
 # 4. 配置 Nginx 并上传前端
 yum install -y nginx
@@ -593,6 +598,6 @@ curl http://127.0.0.1/api/shop-type/list
 
 ---
 
-> **文档版本**：v1.0
+> **文档版本**：v1.1
 > **最后更新**：2026-04-28
-> **如有问题**：检查 `docker logs hm-dianping` 和 `/var/log/nginx/error.log`
+> **如有问题**：检查 `docker logs locallife` 和 `/var/log/nginx/error.log`

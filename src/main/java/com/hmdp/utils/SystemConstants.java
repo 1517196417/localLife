@@ -1,7 +1,11 @@
 package com.hmdp.utils;
 
+import org.springframework.beans.factory.annotation.Value;
+
 public class SystemConstants {
-    public static final String IMAGE_UPLOAD_DIR = "D:\\javadev\\redis_other_app\\hmdp_helper\\nginx-1.18.0\\html\\hmdp\\imgs";
+    @Value("${app.upload-dir:/home/app/nginx/html/imgs}")
+    public static String IMAGE_UPLOAD_DIR;
+
     public static final String USER_NICK_NAME_PREFIX = "user_";
     public static final int DEFAULT_PAGE_SIZE = 100;
     public static final int MAX_PAGE_SIZE = 100;
