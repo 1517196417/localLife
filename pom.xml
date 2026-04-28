@@ -15,6 +15,14 @@
     <description>Demo project for Spring Boot</description>
     <properties>
         <java.version>1.8</java.version>
+        <!-- Docker镜像相关配置，部署时按需修改 -->
+        <docker.image.prefix>locallife</docker.image.prefix>
+        <docker.host>120.55.195.171:2376</docker.host>
+        <docker.cert.path>/home/docker-ca</docker.cert.path>
+        <!-- JVM参数 -->
+        <docker.jvm.opts>-Xms256m -Xmx256m</docker.jvm.opts>
+        <!-- Spring启动参数 -->
+        <docker.spring.args>--spring.profiles.active=docker</docker.spring.args>
     </properties>
     <dependencies>
         <dependency>
@@ -161,6 +169,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <mainClass>com.hmdp.HmDianPingApplication</mainClass>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
@@ -169,15 +178,53 @@
                     </excludes>
                 </configuration>
             </plugin>
+
+            <!-- Docker 镜像构建插件（fabric8） -->
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
+                <groupId>io.fabric8</groupId>
+            <artifactId>docker-maven-plugin</artifactId>
+                <version>0.37.0</version>
                 <configuration>
-                    <mainClass>
-                        com/hmdp/HmDianPingApplication.java
-                    </mainClass>
+                    <!-- Docker 远程管理地址 -->
+                    <dockerHost>${docker.host}</dockerHost>
+                    <!-- CA 证书位置 -->
+                    <certPath>${docker.cert.path}</certPath>
+                    <images>
+                        <image>
+                            <!-- Docker 镜像名称 -->
+                            <name>${docker.image.prefix}/${project.artifactId}:${project.version}</name>
+                            <!-- 指定 Dockerfile 所在目录 -->
+                            <build>
+                                <contextDir>${project.basedir}</contextDir>
+                            </build>
+                            <!-- 别名用于容器命名 -->
+                            <alias>${project.artifactId}</alias>
+                            <!-- 容器 run 相关配置 -->
+                            <run>
+                                <!-- 配置运行时容器命名策略为:别名 -->
+                                <namingStrategy>alias</namingStrategy>
+                                <!-- 端口映射 -->
+                                <ports>
+                                    <port>8081:8081</port>
+                                </ports>
+                                <!-- 数据卷 -->
+                                <volumes>
+                                    <bind>
+                                        <volume>/etc/localtime:/etc/localtime</volume>
+                                        <volume>/home/app/${project.artifactId}/logs:/tmp/logs</volume>
+                                    </bind>
+                                </volumes>
+                                <!-- 设置环境变量 -->
+                                <env>
+                                    <JAVA_OPTS>${docker.jvm.opts}</JAVA_OPTS>
+                                    <SPRING_ARGS>${docker.spring.args}</SPRING_ARGS>
+                                </env>
+                            </run>
+                        </image>
+                    </images>
                 </configuration>
             </plugin>
+
         </plugins>
     </build>
 

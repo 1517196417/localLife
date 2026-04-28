@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Follow;
+import com.hmdp.entity.UserInfo;
 import com.hmdp.mapper.FollowMapper;
 import com.hmdp.service.IFollowService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.service.IUserInfoService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.UserHolder;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -39,8 +41,8 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
     @Resource
     private IUserService userService;
 
-
-
+    @Resource
+    private IUserInfoService userInfoService;
 
     @Override
     public Result Follow(Long id, Boolean isFollow) {
@@ -55,6 +57,19 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
             follow.setFollowUserId(id);
             save(follow);
 
+            // 更新当前用户的关注数 +1
+            UserInfo myInfo = userInfoService.getById(userId);
+            if (myInfo != null) {
+                myInfo.setFollowee(myInfo.getFollowee() == null ? 1 : myInfo.getFollowee() + 1);
+                userInfoService.updateById(myInfo);
+            }
+            // 更新被关注用户的粉丝数 +1
+            UserInfo targetInfo = userInfoService.getById(id);
+            if (targetInfo != null) {
+                targetInfo.setFans(targetInfo.getFans() == null ? 1 : targetInfo.getFans() + 1);
+                userInfoService.updateById(targetInfo);
+            }
+
             //为实现共同关注，每次关注时将用户id，被关注者id存入redis的set集合
             stringRedisTemplate.opsForSet().add(followKey, id.toString());
         } else {
@@ -62,6 +77,20 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
             remove(new QueryWrapper<Follow>()
                     .eq("user_id", userId)
                     .eq("follow_user_id", id));
+
+            // 更新当前用户的关注数 -1
+            UserInfo myInfo = userInfoService.getById(userId);
+            if (myInfo != null && myInfo.getFollowee() != null && myInfo.getFollowee() > 0) {
+                myInfo.setFollowee(myInfo.getFollowee() - 1);
+                userInfoService.updateById(myInfo);
+            }
+            // 更新被关注用户的粉丝数 -1
+            UserInfo targetInfo = userInfoService.getById(id);
+            if (targetInfo != null && targetInfo.getFans() != null && targetInfo.getFans() > 0) {
+                targetInfo.setFans(targetInfo.getFans() - 1);
+                userInfoService.updateById(targetInfo);
+            }
+
             //为实现共同关注，每次取消关注时将用户id，被关注者id删除redis的set集合
             stringRedisTemplate.opsForSet().remove(followKey, id.toString());
         }

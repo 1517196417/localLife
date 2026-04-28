@@ -90,7 +90,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         // 根据用户查询
         Page<Blog> page = query()
                 .orderByDesc("liked")
-                .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+                .page(new Page<>(current, SystemConstants.BLOG_PAGE_SIZE));
         // 获取当前页数据
         List<Blog> records = page.getRecords();
         // 查询用户
@@ -307,7 +307,8 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                     .map(Long::valueOf)
                     .collect(Collectors.toList());
 
-            recommendBlogs = query().in("id", ids).orderByDesc("liked").last("limit 10").list();
+            // 获取全部推荐博客，不限制10条，让前端做分页
+            recommendBlogs = query().in("id", ids).orderByDesc("liked").list();
             recommendBlogs.forEach(b -> {
                 queryBlogUser(b);
                 isBlogLiked(b);
@@ -333,11 +334,6 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                     queryBlogUser(hotBlog);
                     isBlogLiked(hotBlog);
                     recommendBlogs.add(hotBlog);
-                    
-                    // 达到10条就停止
-                    if (recommendBlogs.size() >= 10) {
-                        break;
-                    }
                 }
             }
         }

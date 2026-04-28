@@ -2,11 +2,14 @@ package com.hmdp.controller;
 
 
 import cn.hutool.core.bean.BeanUtil;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
+import com.hmdp.entity.Follow;
 import com.hmdp.entity.User;
 import com.hmdp.entity.UserInfo;
+import com.hmdp.service.IFollowService;
 import com.hmdp.service.IUserInfoService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.UserHolder;
@@ -34,6 +37,9 @@ public class UserController {
 
     @Resource
     private IUserInfoService userInfoService;
+
+    @Resource
+    private IFollowService followService;
 
     /**
      * 发送手机验证码
@@ -81,6 +87,13 @@ public class UserController {
         }
         info.setCreateTime(null);
         info.setUpdateTime(null);
+
+        // 实时从 tb_follow 表查询粉丝数和关注数，确保数据始终最新
+        int fansCount = followService.count(new QueryWrapper<Follow>().eq("follow_user_id", userId));
+        int followeeCount = followService.count(new QueryWrapper<Follow>().eq("user_id", userId));
+        info.setFans(fansCount);
+        info.setFollowee(followeeCount);
+
         // 返回
         return Result.ok(info);
     }

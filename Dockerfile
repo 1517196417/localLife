@@ -1,32 +1,25 @@
-# ==================== 构建阶段 ====================
-FROM maven:3.6.3-openjdk-8 AS builder
+# 基础镜像
+FROM openjdk:8-jre-alpine
 
-WORKDIR /build
+# 指定维护者
+MAINTAINER locallife
 
-# 1. 复制 pom.xml 并下载依赖（利用 Docker 缓存层）
-COPY pom.xml .
-RUN mvn dependency:go-offline -B -DskipTests
-
-# 2. 复制源代码并打包
-COPY src ./src
-RUN mvn package -B -DskipTests -Dmaven.test.skip=true
-
-# ==================== 运行阶段 ====================
-FROM openjdk:8-jre-slim
-
-WORKDIR /app
-
-# 时区
+# 设置时区
 ENV TZ=Asia/Shanghai
-RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN apk add --no-cache tzdata && \
+    ln -sf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
 
-# 从构建阶段复制打好的 JAR
-COPY --from=builder /build/target/hm-dianping-0.0.1-SNAPSHOT.jar app.jar
+# 将 target 目录下的 jar 包复制到容器中（fabric8 插件会自动处理）
+ADD target/hm-dianping-0.0.1-SNAPSHOT.jar app.jar
 
-# 暴露后端端口
+# 定义 JVM 参数（可通过 docker-maven-plugin 的 <env> 覆盖）
+ENV JAVA_OPTS="-Xms256m -Xmx256m"
+ENV SPRING_ARGS=""
+RUN echo "JAVA_OPTS=" $JAVA_OPTS
+
+# 对外暴露端口
 EXPOSE 8081
 
-# 启动命令（可通过环境变量覆盖配置）
-ENTRYPOINT ["java", "-jar", "app.jar", \
-    "--spring.profiles.active=${SPRING_PROFILE:-docker}", \
-    "--server.port=8081"]
+# 设置容器启动执行指令
+CMD java $JAVA_OPTS -jar /app.jar --logging.file.path=/tmp/logs/spring-boot $SPRING_ARGS
